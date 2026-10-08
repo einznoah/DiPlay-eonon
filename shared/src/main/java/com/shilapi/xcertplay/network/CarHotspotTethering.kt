@@ -8,6 +8,8 @@ import android.provider.Settings
 import com.shilapi.xcertplay.adb.AdbKeys
 import com.shilapi.xcertplay.adb.LocalAdb
 import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Proxy
+import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.TimeUnit
@@ -37,14 +39,21 @@ object CarHotspotTethering {
         val deadline = System.nanoTime() + timeoutMillis * 1_000_000L
         val observedAdbState = AtomicReference<Boolean?>()
         val startReflection: (ResultReceiver) -> Unit = { receiver ->
-            val service = ConnectivityManager::class.java.getDeclaredField("mService")
-                .apply { isAccessible = true }
-                .get(context.getSystemService(ConnectivityManager::class.java))
-                ?: throw NoSuchMethodException("Connectivity service unavailable")
-            service.javaClass.getMethod(
-                "startTethering", Int::class.javaPrimitiveType, ResultReceiver::class.java,
-                Boolean::class.javaPrimitiveType, String::class.java,
-            ).invoke(service, 0, receiver, false, context.packageName)
+            try {
+                val service = ConnectivityManager::class.java.getDeclaredField("mService")
+                    .apply { isAccessible = true }
+                    .get(context.getSystemService(ConnectivityManager::class.java))
+                    ?: throw NoSuchMethodException("Connectivity service unavailable")
+                service.javaClass.getMethod(
+                    "startTethering", Int::class.javaPrimitiveType, ResultReceiver::class.java,
+                    Boolean::class.javaPrimitiveType, String::class.java,
+                ).invoke(service, 0, receiver, false, context.packageName)
+            } catch (missing: ReflectiveOperationException) {
+                // Android 11 moved tethering out of the connectivity service. A rejection by the
+                // old entry point is a real answer; only its absence selects the newer one.
+                if (missing is InvocationTargetException) throw missing
+                startWithTetheringManager(context, receiver)
+            }
         }
         val startAdb: () -> Boolean = {
             val client = AtomicReference<LocalAdb?>()
@@ -69,6 +78,27 @@ object CarHotspotTethering {
             startFallback = startAdb,
             start = startReflection,
         ).also { log("car hotspot auto-enable: ${it.diagnostic}") }
+    }
+
+    /** Android 11+ entry point; it accepts the same write-settings grant as the older service call. */
+    private fun startWithTetheringManager(context: Context, receiver: ResultReceiver) {
+        val manager = context.getSystemService("tethering")
+            ?: throw NoSuchMethodException("Tethering service unavailable")
+        val callbackType = Class.forName("android.net.TetheringManager\$StartTetheringCallback")
+        val callback = Proxy.newProxyInstance(callbackType.classLoader, arrayOf(callbackType)) { proxy, method, args ->
+            when (method.name) {
+                "onTetheringStarted" -> { receiver.send(0, null); null }
+                // The poll treats any positive code as failure; platform error codes are positive.
+                "onTetheringFailed" -> { receiver.send((args?.firstOrNull() as? Int)?.coerceAtLeast(1) ?: 1, null); null }
+                "hashCode" -> System.identityHashCode(proxy)
+                "equals" -> proxy === args?.firstOrNull()
+                "toString" -> "CarHotspotStartCallback"
+                else -> null
+            }
+        }
+        manager.javaClass.getMethod(
+            "startTethering", Int::class.javaPrimitiveType, Executor::class.java, callbackType,
+        ).invoke(manager, 0, Executor { it.run() }, callback)
     }
 
     /** An ADB observation supplements hidden platform status, but never overrides a current off state. */
