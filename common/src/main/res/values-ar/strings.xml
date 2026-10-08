@@ -399,6 +399,7 @@
     <string name="wireless_permissions">أذونات لاسلكية</string>
     <string name="wpa2_wpa3_password_must_be_8_63_characters">يجب أن تكون كلمة مرور WPA2/WPA3 من 8 إلى 63 حرفاً</string>
     <string name="wpa3_transition">انتقال WPA3</string>
+    <string name="another_carplay_app_may_be_using_the_iphone_bluetooth_channel">اتصل iPhone عبر البلوتوث لكنه لم يرسل أي بيانات. قد يكون تطبيق CarPlay آخر على وحدة القيادة يستخدمه. أغلق ذلك التطبيق ثم أعد الاتصال.</string>
     <string name="your_iphone_isn_t_available_unlock_it_and_check_bluetooth">iPhone غير متاح. افتح قفله وتحقق من البلوتوث.</string>
     <string name="your_maps_music_and_conversations_carplay_right_here_on_yo">خرائطك وموسيقاك ومحادثاتك.\nCarPlay، هنا على شاشة سيارتك.</string>
     <string name="your_phone_your_drive">هاتفك. رحلتك.</string>

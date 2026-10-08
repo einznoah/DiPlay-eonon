@@ -451,6 +451,7 @@
     <string name="wpa2_wpa3_password_must_be_8_63_characters">WPA2/WPA3 password must be 8-63 characters</string>
     <string name="wpa3">WPA3</string>
     <string name="wpa3_transition">WPA3 transition</string>
+    <string name="another_carplay_app_may_be_using_the_iphone_bluetooth_channel">Your iPhone connected over Bluetooth but sent no data. Another CarPlay app on this head unit may be using it. Close that app, then reconnect.</string>
     <string name="your_iphone_isn_t_available_unlock_it_and_check_bluetooth">Your iPhone isn’t available. Unlock it and check Bluetooth.</string>
     <string name="your_maps_music_and_conversations_carplay_right_here_on_yo">Your maps, music and conversations.\nCarPlay, right here on your car display.</string>
     <string name="your_phone_your_drive">YOUR PHONE. YOUR DRIVE.</string>

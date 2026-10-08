@@ -68,7 +68,45 @@ class BluetoothRfcommDuplexStreamTest {
         assertEquals(1, socket.closes.get())
         assertTrue(lines.any { it.contains("reader result=FAILED beforeFirstByte=true readCalls=1 receivedBytes=0") })
         assertTrue(lines.any { it.contains("operation=READ reason=READ_FAILED") })
+        assertTrue(lines.any { it.endsWith("causeKind=other") })
+        assertTrue(failure.beforeFirstByte)
+        assertFalse(stream.hasReceivedBytes())
         assertFalse(lines.joinToString().contains("private"))
+    }
+
+    @Test fun readFailureAfterDeliveredBytesIsNotASilentChannel() {
+        val lines = CopyOnWriteArrayList<String>()
+        val input = object : InputStream() {
+            private var calls = 0
+            override fun read(): Int = throw AssertionError("bulk reads only")
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                if (calls++ > 0) throw IOException("bt socket closed, read return: -1")
+                buffer[offset] = 0x55
+                return 1
+            }
+        }
+        val stream = BluetoothRfcommDuplexStream(FakeSocket(input), lines::add)
+
+        assertArrayEquals(byteArrayOf(0x55), stream.recv(32, 2_000))
+        val failure = expectFailure { stream.recv(32, 2_000) }
+        stream.close()
+
+        assertFalse(failure.beforeFirstByte)
+        assertTrue(stream.hasReceivedBytes())
+        assertTrue(lines.any { it.contains("reader result=FAILED beforeFirstByte=false") })
+        assertTrue(lines.any { it.endsWith("causeKind=socket_closed") })
+    }
+
+    @Test fun platformConnectTimeoutTextBecomesABoundedToken() {
+        val lines = CopyOnWriteArrayList<String>()
+        val original = IOException("read failed, socket might closed or timeout, read ret: -1")
+        val stream = BluetoothRfcommDuplexStream(FakeSocket(FailingInput(original)), lines::add)
+
+        expectFailure { stream.recv(32, 2_000) }
+        stream.close()
+
+        assertTrue(lines.any { it.endsWith("causeKind=closed_or_timeout") })
+        assertFalse(lines.joinToString().contains("read ret"))
     }
 
     @Test fun vendorReaderRuntimeFailureKeepsItsTypeWithoutLeakingItsMessage() {

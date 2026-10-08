@@ -18,6 +18,8 @@ class BluetoothRfcommStreamException internal constructor(
     val operation: Operation,
     val reason: Reason,
     cause: Throwable? = null,
+    /** True when a read failed although the opened socket never delivered a byte. */
+    val beforeFirstByte: Boolean = false,
 ) : IOException("Bluetooth RFCOMM ${operation.name.lowercase()} failed: ${reason.name.lowercase()}", cause) {
     enum class Operation { INPUT_STREAM, OUTPUT_STREAM, READ, WRITE }
     enum class Reason { STREAM_UNAVAILABLE, STREAM_ACCESS_FAILED, READ_FAILED, WRITE_FAILED }
@@ -191,12 +193,14 @@ class BluetoothRfcommDuplexStream internal constructor(
                 BluetoothRfcommStreamException.Operation.READ,
                 BluetoothRfcommStreamException.Reason.READ_FAILED,
                 io,
+                beforeFirstByte = receivedBytes == 0L,
             )
         } catch (failure: Throwable) {
             if (!isStopping()) readFailure = BluetoothRfcommStreamException(
                 BluetoothRfcommStreamException.Operation.READ,
                 BluetoothRfcommStreamException.Reason.READ_FAILED,
                 failure,
+                beforeFirstByte = receivedBytes == 0L,
             )
             if (failure is Error) throw failure
         } finally {
@@ -264,7 +268,18 @@ class BluetoothRfcommDuplexStream internal constructor(
         report("Bluetooth RFCOMM stream result=FAILED operation=${streamFailure?.operation ?: "UNKNOWN"} " +
             "reason=${streamFailure?.reason ?: "UNKNOWN"} failureClass=${error.javaClass.simpleName} " +
             "causeClass=${error.cause?.javaClass?.simpleName ?: "none"} " +
-            "nestedCauseClass=${error.cause?.cause?.javaClass?.simpleName ?: "none"}")
+            "nestedCauseClass=${error.cause?.cause?.javaClass?.simpleName ?: "none"} " +
+            "causeKind=${causeKind(error.cause)}")
+    }
+
+    // Platform messages can carry addresses, so only a bounded token reaches diagnostics.
+    private fun causeKind(cause: Throwable?): String {
+        val message = cause?.message?.lowercase() ?: return "none"
+        return when {
+            "timeout" in message -> "closed_or_timeout"
+            "socket closed" in message -> "socket_closed"
+            else -> "other"
+        }
     }
 
     private fun reportReadTerminal(result: String) {
@@ -291,6 +306,8 @@ class BluetoothRfcommDuplexStream internal constructor(
             IOException("Could not close the Bluetooth RFCOMM socket", failure)
         }
     }
+
+    fun hasReceivedBytes(): Boolean = synchronized(lock) { receivedBytes > 0 }
 
     private fun isClosed(): Boolean = synchronized(lock) { closed }
 

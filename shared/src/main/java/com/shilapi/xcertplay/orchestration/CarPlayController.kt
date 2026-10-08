@@ -59,6 +59,7 @@ import com.shilapi.xcertplay.network.WirelessStartupFailure
 import com.shilapi.xcertplay.network.WirelessStartupDiagnostics
 import com.shilapi.xcertplay.transport.BlockingDuplexByteStream
 import com.shilapi.xcertplay.transport.BluetoothRfcommDuplexStream
+import com.shilapi.xcertplay.transport.BluetoothRfcommStreamException
 import com.shilapi.xcertplay.transport.Ch341DeviceMatcher
 import com.shilapi.xcertplay.transport.Ch341I2cTransport
 import com.shilapi.xcertplay.transport.Ch341UsbHost
@@ -88,6 +89,7 @@ import com.shilapi.xcertplay.transport.LockdownPairingClient
 import com.shilapi.xcertplay.transport.LockdownPairRecord
 import com.shilapi.xcertplay.transport.NcmFunctionDiscovery
 import com.shilapi.xcertplay.transport.NcmUsbBridge
+import com.shilapi.xcertplay.transport.WirelessRfcommConnectPolicy
 import java.io.Closeable
 import java.io.IOException
 import java.net.InetAddress
@@ -1121,6 +1123,8 @@ class CarPlayController(
     }
 
     private fun runWireless(generation: Int) {
+        val rfcommPolicy = WirelessRfcommConnectPolicy.process
+        var openedRfcommStream: BluetoothRfcommDuplexStream? = null
         try {
             debugLog("wireless bring-up generation=$generation starting")
             closeWirelessStack(generation = generation)
@@ -1288,14 +1292,20 @@ class CarPlayController(
             }
 
             onStatus(CarPlayStatus.ConnectingBluetooth)
+            val rfcommMode = rfcommPolicy.mode()
             debugLog(
                 "wireless RFCOMM connecting address=${device.address} " +
-                    "uuid=$IAP2_IPHONE_UUID",
+                    "uuid=$IAP2_IPHONE_UUID rfcommMode=$rfcommMode",
             )
             val socket = synchronized(wirelessResourceLock) {
                 if (isStaleWirelessRun(generation)) return
-                device.createRfcommSocketToServiceRecord(UUID.fromString(IAP2_IPHONE_UUID))
-                    .also { bluetoothSocket = it }
+                val iap2Service = UUID.fromString(IAP2_IPHONE_UUID)
+                when (rfcommMode) {
+                    WirelessRfcommConnectPolicy.Mode.SECURE ->
+                        device.createRfcommSocketToServiceRecord(iap2Service)
+                    WirelessRfcommConnectPolicy.Mode.INSECURE ->
+                        device.createInsecureRfcommSocketToServiceRecord(iap2Service)
+                }.also { bluetoothSocket = it }
             }
             logBluetoothConnectionSnapshot(device, "before-connect")
             val bluetoothStarted = System.nanoTime()
@@ -1326,6 +1336,7 @@ class CarPlayController(
                     if (bluetoothSocket === socket) bluetoothSocket = null
                 }
             }
+            openedRfcommStream = stream
             val channel = Iap2Session.openWireless(
                 stream,
                 traceContext = "wireless-rfcomm",
@@ -1441,9 +1452,20 @@ class CarPlayController(
             } else {
                 debugLog("wireless bring-up failed", error)
                 if (error is Error) throw error
-                fail(error, generation)
+                val silentChannel = generateSequence(error) { it.cause }
+                    .filterIsInstance<BluetoothRfcommStreamException>()
+                    .any { it.operation == BluetoothRfcommStreamException.Operation.READ && it.beforeFirstByte }
+                if (silentChannel) {
+                    rfcommPolicy.onEarlyReadFailure()
+                    // The host maps "sent no data" to its localized hint; keep that phrase.
+                    fail(IOException(SILENT_RFCOMM_CHANNEL_MESSAGE, error), generation)
+                } else {
+                    fail(error, generation)
+                }
                 closeWirelessStack(generation = generation)
             }
+        } finally {
+            if (openedRfcommStream?.hasReceivedBytes() == true) rfcommPolicy.onBytesReceived()
         }
     }
 
@@ -2171,6 +2193,9 @@ class CarPlayController(
     private fun selectWirelessBluetoothDevice(adapter: BluetoothAdapter): BluetoothDevice {
         val bonded = adapter.bondedDevices.orEmpty()
         config.wirelessBluetoothDeviceAddress?.let { selected ->
+            connectionDiagnostic(
+                BluetoothConnectionSnapshot.describeSelection(explicit = true, bonded.size, null, null),
+            )
             return bonded.firstOrNull { it.address.equals(selected, ignoreCase = true) }
                 ?: throw IOException("The selected iPhone is no longer paired. Choose it again in DiPlay.")
         }
@@ -2182,6 +2207,11 @@ class CarPlayController(
             IphoneCarPlayConfiguration.TAG,
             "wireless Bluetooth bondedIPhones=${iPhones.size} " +
                 "directlyConnected=${directlyConnectedIPhones.size}",
+        )
+        connectionDiagnostic(
+            BluetoothConnectionSnapshot.describeSelection(
+                explicit = false, bonded.size, iPhones.size, directlyConnectedIPhones.size,
+            ),
         )
         val connectedIPhones = if (directlyConnectedIPhones.isNotEmpty()) {
             directlyConnectedIPhones
@@ -2262,21 +2292,19 @@ class CarPlayController(
                 connectionDiagnostic("Bluetooth snapshot point=$point unavailable reason=connect-permission")
                 return
             }
-            val bondState = device.bondState
-            val bondName = when (bondState) {
-                BluetoothDevice.BOND_NONE -> "NONE"
-                BluetoothDevice.BOND_BONDING -> "BONDING"
-                BluetoothDevice.BOND_BONDED -> "BONDED"
-                else -> "UNKNOWN"
-            }
             val cachedServices = runCatching { device.uuids }
             val uuids = cachedServices.getOrNull()
             val service = UUID.fromString(IAP2_IPHONE_UUID)
             connectionDiagnostic(
-                "Bluetooth snapshot point=$point enabled=${bluetoothAdapter?.isEnabled} " +
-                    "bondState=$bondState bondName=$bondName cachedServicesReadable=${cachedServices.isSuccess} " +
-                    "cachedServiceCount=${uuids?.size ?: "unknown"} " +
-                    "cachedIap2Service=${uuids?.any { it.uuid == service } ?: "unknown"}",
+                BluetoothConnectionSnapshot.describe(
+                    point = point,
+                    enabled = bluetoothAdapter?.isEnabled,
+                    bondState = device.bondState,
+                    aclConnected = isBluetoothDeviceConnected(device),
+                    cachedServicesReadable = cachedServices.isSuccess,
+                    cachedServiceCount = uuids?.size,
+                    cachedIap2Service = uuids?.any { it.uuid == service },
+                ),
             )
         } catch (error: RuntimeException) {
             connectionDiagnostic("Bluetooth snapshot point=$point unavailable failureClass=${diagnosticFailureClass(error)}")
@@ -2666,6 +2694,9 @@ class CarPlayController(
         private const val DEVICE_AVAILABILITY_POLL_INTERVAL_MILLIS = 2_000L
         private const val WIRELESS_HANDOFF_TIMEOUT_MILLIS = 45_000L
         private const val RFCOMM_CONNECT_TIMEOUT_MILLIS = 15_000L
+        const val SILENT_RFCOMM_CHANNEL_MESSAGE =
+            "The iPhone opened the Bluetooth channel but sent no data. Another CarPlay or " +
+                "phone-link app on this head unit may be using it. Close or disable that app, then reconnect."
         private const val MAXIMUM_REENUMERATION_ATTEMPTS = 2
         private const val EXECUTOR_CLOSE_TIMEOUT_MILLIS = 2_000L
         private const val ADAPTER_ADDRESS_PLACEHOLDER = "02:00:00:00:00:00"

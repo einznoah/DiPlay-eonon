@@ -399,6 +399,7 @@
     <string name="wireless_permissions">Беспроводные разрешения</string>
     <string name="wpa2_wpa3_password_must_be_8_63_characters">Пароль WPA2/WPA3 должен содержать 8–63 символа</string>
     <string name="wpa3_transition">Переходный WPA3</string>
+    <string name="another_carplay_app_may_be_using_the_iphone_bluetooth_channel">iPhone подключился по Bluetooth, но не отправил данные. Возможно, его использует другое приложение CarPlay на этом головном устройстве. Закройте это приложение и подключитесь снова.</string>
     <string name="your_iphone_isn_t_available_unlock_it_and_check_bluetooth">iPhone недоступен. Разблокируйте его и проверьте Bluetooth.</string>
     <string name="your_maps_music_and_conversations_carplay_right_here_on_yo">Ваши карты, музыка и разговоры.\nCarPlay прямо здесь на экране автомобиля.</string>
     <string name="your_phone_your_drive">ВАШ ТЕЛЕФОН. ВАША ПОЕЗДКА.</string>

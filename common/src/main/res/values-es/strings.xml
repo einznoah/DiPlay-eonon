@@ -399,6 +399,7 @@
     <string name="wireless_permissions">Permisos inalámbricos</string>
     <string name="wpa2_wpa3_password_must_be_8_63_characters">La contraseña WPA2/WPA3 debe tener de 8 a 63 caracteres</string>
     <string name="wpa3_transition">Transición WPA3</string>
+    <string name="another_carplay_app_may_be_using_the_iphone_bluetooth_channel">Tu iPhone se conectó por Bluetooth, pero no envió datos. Puede que otra aplicación de CarPlay de la unidad principal lo esté usando. Cierra esa aplicación y vuelve a conectar.</string>
     <string name="your_iphone_isn_t_available_unlock_it_and_check_bluetooth">Tu iPhone no está disponible. Desbloquéalo y comprueba el Bluetooth.</string>
     <string name="your_maps_music_and_conversations_carplay_right_here_on_yo">Tus mapas, tu música y tus conversaciones.\nCarPlay, aquí mismo en la pantalla de tu coche.</string>
     <string name="your_phone_your_drive">TU TELÉFONO. TU TRAYECTO.</string>

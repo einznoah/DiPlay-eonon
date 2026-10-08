@@ -412,6 +412,7 @@
     <string name="wpa2_wpa3_password_must_be_8_63_characters">WPA2/WPA3 密碼長度必須為 8–63 個字元</string>
     <string name="wpa3">WPA3</string>
     <string name="wpa3_transition">WPA3 過渡模式</string>
+    <string name="another_carplay_app_may_be_using_the_iphone_bluetooth_channel">iPhone 已透過藍牙連線，但沒有傳送資料。車機上的其他 CarPlay App 可能正在占用它。請關閉該 App 後重新連線。</string>
     <string name="your_iphone_isn_t_available_unlock_it_and_check_bluetooth">暫時找不到 iPhone。請解鎖 iPhone 並檢查藍牙。</string>
     <string name="your_maps_music_and_conversations_carplay_right_here_on_yo">地圖、音樂與通話，\n在車機螢幕上暢享 CarPlay。</string>
     <string name="your_phone_your_drive">你的手機，暢享旅程。</string>

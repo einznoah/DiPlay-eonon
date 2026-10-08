@@ -412,6 +412,7 @@
     <string name="wpa2_wpa3_password_must_be_8_63_characters">Пароль WPA2/WPA3 має містити від 8 до 63 символів</string>
     <string name="wpa3">WPA3</string>
     <string name="wpa3_transition">Перехідний режим WPA3</string>
+    <string name="another_carplay_app_may_be_using_the_iphone_bluetooth_channel">iPhone під’єднався через Bluetooth, але не надіслав дані. Можливо, його використовує інший застосунок CarPlay на цьому головному пристрої. Закрийте цей застосунок і під’єднайтеся знову.</string>
     <string name="your_iphone_isn_t_available_unlock_it_and_check_bluetooth">iPhone недоступний. Розблокуйте його й перевірте Bluetooth.</string>
     <string name="your_maps_music_and_conversations_carplay_right_here_on_yo">Ваші карти, музика й розмови.\nCarPlay прямо на екрані автомобіля.</string>
     <string name="your_phone_your_drive">ВАШ ТЕЛЕФОН. ВАША ПОЇЗДКА.</string>

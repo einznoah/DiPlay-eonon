@@ -46,11 +46,16 @@ class DiagnosticRedactorTest {
     @Test fun connectionTimingAndCachedServiceMetadataSurviveWithoutPersonalIdentifiers() {
         val lines = listOf(
             "CONNECTION_DIAGNOSTIC attempt=2 phase=CONTROL wired io final readCalls=105 writeCalls=50 readTimeouts=3 ends=0 failures=1 maxReadMs=909 maxWriteMs=1937",
-            "CONNECTION_DIAGNOSTIC attempt=2 phase=WIRELESS Bluetooth snapshot point=after-failure enabled=true bondState=12 cachedServiceCount=5 cachedIap2Service=false",
+            "CONNECTION_DIAGNOSTIC attempt=2 run=1 phase=WIRELESS Bluetooth snapshot point=after-failure enabled=true bondState=12 bond=BONDED aclConnected=true cachedServicesReadable=true cachedServiceCount=5 cachedIap2Service=false",
+            "CONNECTION_DIAGNOSTIC attempt=2 run=1 phase=WIRELESS Bluetooth selection explicit=false bonded=3 bondedIPhones=1 directlyConnected=1",
+            "CONNECTION_DIAGNOSTIC attempt=2 run=1 phase=WIRELESS Bluetooth RFCOMM stream result=FAILED operation=READ reason=READ_FAILED failureClass=BluetoothRfcommStreamException causeClass=IOException nestedCauseClass=none causeKind=socket_closed",
+            "wireless bring-up failed: ${com.shilapi.xcertplay.orchestration.CarPlayController.SILENT_RFCOMM_CHANNEL_MESSAGE}",
             "CONNECTION_DIAGNOSTIC generation=2 restart teardownWaitCompleted=false elapsedMs=4000",
             "CONNECTION_DIAGNOSTIC attempt=2 phase=USB_DISCOVERY USB configuration ready=true configurationId=6 reenumerationAttempts=0 action=reuse-descriptors",
         )
         for (line in lines) assertEquals(line, DiagnosticRedactor.redact(line))
+        // A key ending in "name=" removes the whole line; this once hid the Bluetooth snapshot.
+        assertNull(DiagnosticRedactor.redact("CONNECTION_DIAGNOSTIC attempt=2 Bluetooth snapshot bondState=12 bondName=BONDED"))
         assertNull(DiagnosticRedactor.redact("CONNECTION_DIAGNOSTIC attempt=2 payload=private-data"))
         assertFalse(DiagnosticRedactor.redact("CONNECTION_DIAGNOSTIC attempt=2 peer=192.168.49.1 id=0123456789abcdef0123456789abcdef")!!.contains("192.168.49.1"))
     }
