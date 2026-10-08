@@ -307,8 +307,6 @@ class BluetoothRfcommDuplexStream internal constructor(
         }
     }
 
-    fun hasReceivedBytes(): Boolean = synchronized(lock) { receivedBytes > 0 }
-
     private fun isClosed(): Boolean = synchronized(lock) { closed }
 
     private fun isStopping(): Boolean = synchronized(lock) { closed || failure != null }

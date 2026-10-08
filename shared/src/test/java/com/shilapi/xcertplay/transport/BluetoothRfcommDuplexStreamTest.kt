@@ -70,7 +70,6 @@ class BluetoothRfcommDuplexStreamTest {
         assertTrue(lines.any { it.contains("operation=READ reason=READ_FAILED") })
         assertTrue(lines.any { it.endsWith("causeKind=other") })
         assertTrue(failure.beforeFirstByte)
-        assertFalse(stream.hasReceivedBytes())
         assertFalse(lines.joinToString().contains("private"))
     }
 
@@ -92,7 +91,6 @@ class BluetoothRfcommDuplexStreamTest {
         stream.close()
 
         assertFalse(failure.beforeFirstByte)
-        assertTrue(stream.hasReceivedBytes())
         assertTrue(lines.any { it.contains("reader result=FAILED beforeFirstByte=false") })
         assertTrue(lines.any { it.endsWith("causeKind=socket_closed") })
     }

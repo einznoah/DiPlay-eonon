@@ -89,7 +89,6 @@ import com.shilapi.xcertplay.transport.LockdownPairingClient
 import com.shilapi.xcertplay.transport.LockdownPairRecord
 import com.shilapi.xcertplay.transport.NcmFunctionDiscovery
 import com.shilapi.xcertplay.transport.NcmUsbBridge
-import com.shilapi.xcertplay.transport.WirelessRfcommConnectPolicy
 import java.io.Closeable
 import java.io.IOException
 import java.net.InetAddress
@@ -1123,8 +1122,6 @@ class CarPlayController(
     }
 
     private fun runWireless(generation: Int) {
-        val rfcommPolicy = WirelessRfcommConnectPolicy.process
-        var openedRfcommStream: BluetoothRfcommDuplexStream? = null
         try {
             debugLog("wireless bring-up generation=$generation starting")
             closeWirelessStack(generation = generation)
@@ -1292,20 +1289,14 @@ class CarPlayController(
             }
 
             onStatus(CarPlayStatus.ConnectingBluetooth)
-            val rfcommMode = rfcommPolicy.mode()
             debugLog(
                 "wireless RFCOMM connecting address=${device.address} " +
-                    "uuid=$IAP2_IPHONE_UUID rfcommMode=$rfcommMode",
+                    "uuid=$IAP2_IPHONE_UUID",
             )
             val socket = synchronized(wirelessResourceLock) {
                 if (isStaleWirelessRun(generation)) return
-                val iap2Service = UUID.fromString(IAP2_IPHONE_UUID)
-                when (rfcommMode) {
-                    WirelessRfcommConnectPolicy.Mode.SECURE ->
-                        device.createRfcommSocketToServiceRecord(iap2Service)
-                    WirelessRfcommConnectPolicy.Mode.INSECURE ->
-                        device.createInsecureRfcommSocketToServiceRecord(iap2Service)
-                }.also { bluetoothSocket = it }
+                device.createRfcommSocketToServiceRecord(UUID.fromString(IAP2_IPHONE_UUID))
+                    .also { bluetoothSocket = it }
             }
             logBluetoothConnectionSnapshot(device, "before-connect")
             val bluetoothStarted = System.nanoTime()
@@ -1336,7 +1327,6 @@ class CarPlayController(
                     if (bluetoothSocket === socket) bluetoothSocket = null
                 }
             }
-            openedRfcommStream = stream
             val channel = Iap2Session.openWireless(
                 stream,
                 traceContext = "wireless-rfcomm",
@@ -1456,7 +1446,6 @@ class CarPlayController(
                     .filterIsInstance<BluetoothRfcommStreamException>()
                     .any { it.operation == BluetoothRfcommStreamException.Operation.READ && it.beforeFirstByte }
                 if (silentChannel) {
-                    rfcommPolicy.onEarlyReadFailure()
                     // The host maps "sent no data" to its localized hint; keep that phrase.
                     fail(IOException(SILENT_RFCOMM_CHANNEL_MESSAGE, error), generation)
                 } else {
@@ -1464,8 +1453,6 @@ class CarPlayController(
                 }
                 closeWirelessStack(generation = generation)
             }
-        } finally {
-            if (openedRfcommStream?.hasReceivedBytes() == true) rfcommPolicy.onBytesReceived()
         }
     }
 
