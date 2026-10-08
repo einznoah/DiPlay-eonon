@@ -61,6 +61,7 @@ import com.shilapi.xcertplay.transport.BlockingDuplexByteStream
 import com.shilapi.xcertplay.transport.BluetoothRfcommDuplexStream
 import com.shilapi.xcertplay.transport.BluetoothRfcommStreamException
 import com.shilapi.xcertplay.transport.Ch341DeviceMatcher
+import com.shilapi.xcertplay.transport.GocBluetoothBootstrap
 import com.shilapi.xcertplay.transport.Ch341I2cTransport
 import com.shilapi.xcertplay.transport.Ch341UsbHost
 import com.shilapi.xcertplay.transport.Ch341UsbSession
@@ -1299,6 +1300,10 @@ class CarPlayController(
                     .also { bluetoothSocket = it }
             }
             logBluetoothConnectionSnapshot(device, "before-connect")
+            requestVendorIap2Channel(device.address)
+            if (isStaleWirelessRun(generation)) {
+                return
+            }
             val bluetoothStarted = System.nanoTime()
             try {
                 connectBluetoothSocket(socket, device.address)
@@ -2226,6 +2231,28 @@ class CarPlayController(
         throw IOException(
             "No unambiguous bonded iPhone found; pair one iPhone and retry",
         )
+    }
+
+    /**
+     * Head units with a Goodocom Bluetooth module open the iPhone iAP2 channel only on request;
+     * their Bluetooth socket otherwise connects to a serial service the iPhone does not have.
+     */
+    private fun requestVendorIap2Channel(address: String) {
+        val bootstrap = GocBluetoothBootstrap()
+        if (!bootstrap.isAvailable()) return
+        try {
+            bootstrap.requestIap2Channel(address)
+            connectionDiagnostic("Bluetooth vendor bootstrap module=goc requested=true")
+            Thread.sleep(GocBluetoothBootstrap.CHANNEL_SETTLE_MILLIS)
+        } catch (interrupted: InterruptedException) {
+            Thread.currentThread().interrupt()
+        } catch (error: Exception) {
+            // The ordinary socket attempt still runs and reports its own failure.
+            connectionDiagnostic(
+                "Bluetooth vendor bootstrap module=goc requested=false " +
+                    "failureClass=${diagnosticFailureClass(error)}",
+            )
+        }
     }
 
     private fun connectBluetoothSocket(socket: BluetoothSocket, address: String) {
